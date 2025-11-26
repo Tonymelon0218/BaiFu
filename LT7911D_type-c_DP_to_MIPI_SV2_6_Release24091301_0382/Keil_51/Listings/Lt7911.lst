@@ -1,0 +1,599 @@
+C51 COMPILER V9.60.0.0   LT7911                                                            11/26/2025 11:55:36 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE LT7911
+OBJECT MODULE PLACED IN .\Objects\Lt7911.obj
+COMPILER INVOKED BY: D:\DevTools\Keil_5\Keil_v5\C51\BIN\C51.EXE ..\User\Lt7911.c LARGE OPTIMIZE(8,SPEED) BROWSE INCDIR(.
+                    -.\User) DEBUG OBJECTEXTEND PRINT(.\Listings\Lt7911.lst) OBJECT(.\Objects\Lt7911.obj)
+
+line level    source
+
+   1          #include "include.h"
+   2          
+   3          
+   4          void InitTime0Inter(void)
+   5          {       
+   6   1              //TMOD &= 0xF0;
+   7   1              TMOD = 0x11;//time0 16bit 
+   8   1              TR0 =0;//disable
+   9   1              IT1 = 0;//TCON = 0x05;
+  10   1              TH0 = 0xF7;//reloaed 300us 
+  11   1              TL0 = 0x40;//
+  12   1              
+  13   1              TR1 = 0;//1
+  14   1              TH1 = 0xB1;
+  15   1              TL1 = 0xE0;
+  16   1      
+  17   1              IE=0x8e;   //EA=1;EX=1;ET1=0;ET0=1;
+  18   1      }
+  19          
+  20          void SystemClk(void)
+  21          {
+  22   1              BK90_62_REG=0x99;//System clk sel 24M
+  23   1      }
+  24          
+  25          void linkAux_TypecEvb_CC1(void)
+  26          {
+  27   1              BKB0_12_REG = 0x3c;
+  28   1              BKDA_A3_REG     = 0x4b; // rx lane swap 
+  29   1              BKDA_A4_REG     = 0x05; //      PN swap
+  30   1              BKB0_30_REG = 0x46;
+  31   1      }
+  32          
+  33          void linkAux_TypecEvb_CC2(void)
+  34          {
+  35   1              BKDA_A3_REG =0xe1;//rx lane swap 
+  36   1              BKDA_A4_REG =0x05;//polarity swap
+  37   1              BKB0_30_REG =0x42;
+  38   1              BKB0_12_REG = 0x3e;
+  39   1      }
+  40          
+  41          void linkAux_TypecEvb(void)
+  42          {
+  43   1              BKC1_AF_REG =0xC3; // vconn
+  44   1              BKDA_FC_REG =0x0f;//Odd and evern
+  45   1              BKDA_A3_REG =0xe1;//rx lane swap 
+  46   1              BKDA_A4_REG =0x05;//polarity swap
+  47   1              BKB0_30_REG =0x42;
+  48   1      
+  49   1              BKD8_00_REG =0x11|DP_HDCP_EN;//EQ hardware mode;HDCP disable
+  50   1              BKB0_12_REG = 0x3e;
+  51   1              hardmode_flag = 0;
+  52   1              Dpcd107_Write =0;
+  53   1      }
+  54          
+C51 COMPILER V9.60.0.0   LT7911                                                            11/26/2025 11:55:36 PAGE 2   
+
+  55          void HPD_High(void)
+  56          {
+  57   1              BKD0_05_REG|=0x40;       // AUX HPD
+  58   1              BKA0_30_REG=0x80; // DP_RX_HPD
+  59   1              BKC0_06_REG=0x08; //HDMI_RX_HPD
+  60   1      }
+  61          
+  62          
+  63          void CC_INT(void)
+  64          {
+  65   1              BKA0_90_REG = 0xFB;// disable ucc int mask
+  66   1              BKB0_05_REG = 0x6F;
+  67   1              delay1ms1(1);
+  68   1              BKB0_05_REG = 0xE0;
+  69   1              delay1ms1(1);
+  70   1              BKB0_05_REG = 0x2B;//CC TX PHY disable
+  71   1      }
+  72          
+  73          void AUX_INT(void)
+  74          {
+  75   1                BKD0_05_REG|=0x03;// AUX SOFT MODE
+  76   1                BKA0_A1_REG =0xff;
+  77   1                BKA0_A1_REG =0x7f;// clear interrupt 2
+  78   1                BKA0_91_REG =0x7f;//interupt bit 7: AuxRx_int_mask    
+  79   1      }
+  80          
+  81          void Video_INT(void)
+  82          {
+  83   1              BKD2_19_REG =0x00;//Bit[0]set1 :Rg_video_out_int_en
+  84   1              BKD2_1C_REG =0xfe;//Bit[0]set0 :Rg_video_out_int_clr
+  85   1              BKA0_90_REG&=0xfe;//INT0 Mask
+  86   1              BKA0_A0_REG&=0xfe;//INT0 Clear
+  87   1      }
+  88          
+  89          void  Attention_Send(void)
+  90          {
+  91   1              if(Enter_AltMode==0x01)
+  92   1              {
+  93   2                      Enter_AltMode =0x00;
+  94   2                      
+  95   2                      if(LastPG == DP_Config) 
+  96   2                      {
+  97   3                      Attention_Flag =1;
+  98   3                      LastPG=Attention;                               
+  99   3                      send_over = 0;          
+ 100   3                      }               
+ 101   2                      if(LastPG == Attention) 
+ 102   2                      {
+ 103   3                      delay1ms1(600);
+ 104   3                      DataOrder = 7;  //send Request          
+ 105   3                      TotalData = 10;
+ 106   3                      LastPG=0xFF;
+ 107   3                      Send_Message(); 
+ 108   3                      send_over = 0;
+ 109   3                      AUX_INT();
+ 110   3                      Video_INT();
+ 111   3                      HPD_High();                             
+ 112   3                      DPEnable =1;
+ 113   3                      }       
+ 114   2              }
+ 115   1      }
+ 116          
+C51 COMPILER V9.60.0.0   LT7911                                                            11/26/2025 11:55:36 PAGE 3   
+
+ 117          void RebulidEdid(void)
+ 118          {
+ 119   1              #if 0
+                      if(g_DisplayMode == VideoCopyMode)
+                      {
+                              g_TimingStr.PixelClock = 148500;
+                              g_TimingStr.Htotal = 2200;
+                              g_TimingStr.Hactive = 1920;
+                              g_TimingStr.Hfp = 88;
+                              g_TimingStr.Hsw = 44;
+                              g_TimingStr.Hbp = 148;
+                              g_TimingStr.Vtotal = 1125;
+                              g_TimingStr.Vactive = 1080;
+                              g_TimingStr.Vfp = 4;
+                              g_TimingStr.Vsw = 5;
+                              g_TimingStr.Vbp = 36;
+                              g_TimingStr.Hspol = 1;
+                              g_TimingStr.Vspol = 1;
+                               
+                      
+              
+                      }
+                  else 
+                  {
+                              g_TimingStr.PixelClock = 297000;
+                              g_TimingStr.Htotal = 4400;
+                              g_TimingStr.Hactive = 3840;
+                              g_TimingStr.Hfp = 176;
+                              g_TimingStr.Hsw = 88;
+                              g_TimingStr.Hbp =296;
+                              g_TimingStr.Vtotal = 1125;
+                              g_TimingStr.Vactive = 1080;
+                              g_TimingStr.Vfp = 4;
+                              g_TimingStr.Vsw = 5;
+                              g_TimingStr.Vbp = 36;
+                              g_TimingStr.Hspol = 1;
+                              g_TimingStr.Vspol = 1;
+                              
+                              
+                      }       
+                      #endif
+ 158   1              
+ 159   1              if(g_EdidBlockCalEnable)
+ 160   1              {
+ 161   2                      EDID_Dtb_Block_Calc(Edid+0x36);
+ 162   2                      EDID_Dtb_Block_Calc(Edid+0x48);         
+ 163   2              }
+ 164   1              EDID_CheckSum_Calc(Edid);
+ 165   1      }
+ 166          
+ 167          void DPCD_Parameter(u32 Addr, u8 Data)
+ 168          {
+ 169   1      //D855: bit[7]: 0:aux mode; 1:reg mode
+ 170   1      //D852: DPCD[19:16]
+ 171   1      //D851: DPCD[15:8]
+ 172   1      //D850: DPCD[7:0]
+ 173   1      //D853: Data
+ 174   1              BKD8_55_REG = 0x80;//Aux reg mode
+ 175   1              BKD8_52_REG = ((Addr>>16)&0x0f);
+ 176   1              BKD8_51_REG = ((Addr>>8)&0xff);
+ 177   1              BKD8_50_REG = (Addr&0xff);
+ 178   1              BKD8_53_REG = Data;
+C51 COMPILER V9.60.0.0   LT7911                                                            11/26/2025 11:55:36 PAGE 4   
+
+ 179   1      }
+ 180          
+ 181          void DPCD_Init(void)
+ 182          {
+ 183   1              DPCD_Parameter(0x00000,0x12);//DPCD Rev
+ 184   1              DPCD_Parameter(0x00001,g_DpcdSetStr.MaxLinkRate);//Max Lane Rate
+ 185   1              DPCD_Parameter(0x00002,(g_DpcdSetStr.MaxLinkCount|0x80));//Max Lane Count
+ 186   1              DPCD_Parameter(0x00003,g_DpcdSetStr.SSC);//SSC
+ 187   1              DPCD_Parameter(0x00004,0x01);//Receive port
+ 188   1              DPCD_Parameter(0x00005,0x00);//Downstream port
+ 189   1              DPCD_Parameter(0x00006,0x00);//8B10B Code
+ 190   1              DPCD_Parameter(0x00007,0x01);//Downstream count
+ 191   1              DPCD_Parameter(0x00008,0x02);//Local EDID
+ 192   1              DPCD_Parameter(0x00009,0x00);//No care
+ 193   1              DPCD_Parameter(0x0000A,0x00);//No care
+ 194   1              DPCD_Parameter(0x0000B,0x00);//No care
+ 195   1              DPCD_Parameter(0x0000D,0x00);//eDP , No care
+ 196   1              DPCD_Parameter(0x0000E,0x04);//Training Time No care
+ 197   1              DPCD_Parameter(0x0000F,0x00);//No care
+ 198   1              
+ 199   1              DPCD_Parameter(0x00020,0x00);
+ 200   1              DPCD_Parameter(0x00021,0x00);
+ 201   1              DPCD_Parameter(0x00200,0x01);//Sink Count
+ 202   1      
+ 203   1      }
+ 204          
+ 205          void IRQ_Send(void)
+ 206          {       
+ 207   1                              if(g_InputType == Typec_Source)
+ 208   1                              {
+ 209   2                                      DataOrder = 10; //send IRQ              
+ 210   2                                      TotalData = 10;
+ 211   2                                      Send_Message(); 
+ 212   2                              }
+ 213   1                              else
+ 214   1                              {
+ 215   2                                      BKC0_06_REG=0x00; //RX_HPD low
+ 216   2                                      delay1ms1(1);
+ 217   2                                      BKC0_06_REG=0x08; //RX_HPD high
+ 218   2                              }
+ 219   1      }
+ 220          
+ 221          
+ 222          //void PCR_Reset(void)
+ 223          //{
+ 224          //      BK90_07_REG = 0xF7;
+ 225          //      delay1ms1(10);
+ 226          //      BK90_07_REG = 0xFF;
+ 227          
+ 228          //      BK90_0D_REG = 0xDF;
+ 229          //      delay1ms1(10);
+ 230          //      BK90_0D_REG = 0xFF;     
+ 231          //}
+ 232          
+ 233          void SET_GPIO5_HIGH(void)
+ 234          {
+ 235   1              BKA0_46_REG |= 0x80;
+ 236   1              BKA0_46_REG &= 0xBF;//GPIO5 select gpo_out[4]
+ 237   1              BKB0_8C_REG |= 0x70;
+ 238   1              BKA0_48_REG |= 0x04; //High
+ 239   1      }
+ 240          
+C51 COMPILER V9.60.0.0   LT7911                                                            11/26/2025 11:55:36 PAGE 5   
+
+ 241          void SET_GPIO5_LOW(void)
+ 242          {
+ 243   1              BKA0_46_REG |= 0x80;
+ 244   1              BKA0_46_REG &= 0xBF;//GPIO5 select gpo_out[4]
+ 245   1              BKB0_8C_REG |= 0x77;
+ 246   1              BKA0_48_REG &= 0xFB; //Low
+ 247   1      }
+ 248          
+ 249          void ENABLE_VYSNC(void)
+ 250          {
+ 251   1              BKB0_8D_REG |= 0x07;
+ 252   1              BKA0_46_REG &= 0xF7;
+ 253   1              BKA0_46_REG |= 0x04;
+ 254   1      }
+ 255          
+ 256          void DISABLE_VSYNC(void)
+ 257          {
+ 258   1              BKB0_8D_REG |= 0x07;
+ 259   1              BKA0_46_REG |= 0x0C;
+ 260   1      }
+ 261          
+ 262          void SET_I2S_D2_HIGH(void)
+ 263          {
+ 264   1              BKA0_46_REG = BKA0_46_REG|0x08;
+ 265   1              BKB0_8D_REG = 0x07;
+ 266   1              BKA0_48_REG = BKA0_48_REG|0x10; //High
+ 267   1      }
+ 268          
+ 269          void SET_I2S_D2_LOW(void)
+ 270          {
+ 271   1              BKA0_46_REG = BKA0_46_REG|0x08;
+ 272   1              BKB0_8D_REG = 0x07;     
+ 273   1              BKA0_48_REG = BKA0_48_REG&0xef; //Low
+ 274   1      }
+ 275          
+ 276          #if 0
+              void SavePower(void)
+              {
+                      //For C/DP Input 
+                      BK90_51_REG = 0xfc;//disable CDR clock for data lane based on how many lanes you used 
+                      BK90_57_REG = 0xf9;//disable DPRX main link lane based on how many lanes you used 
+                      BK90_58_REG = 0x33;//disable DPRX main link lane cdr clock based on how many lanes you used 
+                      BK90_5A_REG = 0xfc;//disable HDMI RX Sys_clk and tmds_clk
+                      BK90_5B_REG = 0x00;//disable HDMI RX...
+                      BK90_5C_REG = 0x00;//disable HDMI RX...
+                      BK90_5D_REG = 0x18;//disable HDMI RX and LVDS TX...
+                      BK90_5E_REG = 0x88;//disable unused MIPITX port...
+                      BK90_5F_REG = 0x18;//disable unused MIPITX port...
+                      BK90_61_REG = 0x11;//disable unused MIPITX port...
+                      
+                      BKB0_1F_REG = 0x0C;//PD unuse lane PI
+                      //BKB0_00_REG = 0xc0;//Close Audio
+                      BKB0_44_REG = 0xc4;//disable port0
+                      BKB0_55_REG = 0x04;//disable port1
+                      BKB0_66_REG = 0x04;//disable port2
+                      
+                      BKB0_2E_REG = 0x2C;//afe_pd
+              }
+              #endif
+ 300          
+ 301          void VideoChangeDetect(void)
+ 302          {
+C51 COMPILER V9.60.0.0   LT7911                                                            11/26/2025 11:55:36 PAGE 6   
+
+ 303   1              u16 rd_Htotal,rd_Hactive;
+ 304   1              u16 rd_Vtotal,rd_Vactive;
+ 305   1              
+ 306   1              #if 1 ////take video from MSA 
+ 307   1              rd_Htotal = chip_read_i2c(0xD1DB) << 8;
+ 308   1              rd_Htotal = rd_Htotal + chip_read_i2c(0xD1DC);
+ 309   1      
+ 310   1              rd_Hactive = chip_read_i2c(0xD1E7) << 8;
+ 311   1              rd_Hactive = rd_Hactive + chip_read_i2c(0xD1E8);
+ 312   1      
+ 313   1              rd_Vtotal =  chip_read_i2c(0xD1DD) << 8;
+ 314   1              rd_Vtotal = rd_Vtotal + chip_read_i2c(0xD1DE);
+ 315   1              
+ 316   1              rd_Vactive =  chip_read_i2c(0xD1E9) << 8;
+ 317   1              rd_Vactive = rd_Vactive + chip_read_i2c(0xD1EA);
+ 318   1              
+ 319   1              #endif  
+ 320   1      
+ 321   1              if((g_TimingStr.Htotal != rd_Htotal)||
+ 322   1                      (g_TimingStr.Hactive != rd_Hactive)||
+ 323   1              (g_TimingStr.Vtotal != rd_Vtotal)||
+ 324   1              (g_TimingStr.Vactive != rd_Vactive))
+ 325   1              {
+ 326   2                      g_FlagVideoChange = TRUE;
+ 327   2              }
+ 328   1              else
+ 329   1              {
+ 330   2                      g_FlagVideoChange = FALSE;
+ 331   2              }
+ 332   1      }
+ 333          
+ 334          void FsValueChangeDetect(void)
+ 335          {
+ 336   1              u16 SampleRate; 
+ 337   1              
+ 338   1              
+ 339   1                      SampleRate = chip_read_i2c(0xD154) << 8;
+ 340   1                      SampleRate = SampleRate + chip_read_i2c(0xD155);
+ 341   1      
+ 342   1              if(((SampleRate < 34)&&(SampleRate > 30))||((SampleRate < 46)&&(SampleRate > 42))
+ 343   1                ||((SampleRate < 50)&&(SampleRate > 46))||((SampleRate < 90)&&(SampleRate > 86))
+ 344   1                ||((SampleRate < 98)&&(SampleRate > 94))||((SampleRate < 178)&&(SampleRate > 174))
+ 345   1                ||((SampleRate < 194)&&(SampleRate > 190)))
+ 346   1                              
+ 347   1                              {
+ 348   2                                      if((SampleRate < (g_SampleRate-0x02))||(SampleRate > (g_SampleRate+0x02)))
+ 349   2                                      {       
+ 350   3      
+ 351   3                                              SET_GPIO5_HIGH();       
+ 352   3                                              DelayMs(200);   
+ 353   3                                              SET_GPIO5_LOW();        
+ 354   3                              
+ 355   3                                      }
+ 356   2                                      g_SampleRate = SampleRate; 
+ 357   2                              }
+ 358   1                              else if(SampleRate == 0)
+ 359   1                              {
+ 360   2                                      if(SampleRate != g_SampleRate)
+ 361   2                                      {
+ 362   3                                              g_SampleRate = SampleRate;                                                      
+ 363   3                                              SET_GPIO5_HIGH();       
+ 364   3                                              DelayMs(200);   
+C51 COMPILER V9.60.0.0   LT7911                                                            11/26/2025 11:55:36 PAGE 7   
+
+ 365   3                                              SET_GPIO5_LOW();                
+ 366   3                              
+ 367   3                                      }
+ 368   2                              }
+ 369   1      }
+ 370          
+ 371          
+ 372          void Lt7911_InitialSteps(void)
+ 373          {
+ 374   1              volatile u8 count = 0;
+ 375   1              bool FlagIRQSend = 0;
+ 376   1              bool FlagMipiOK = 0;
+ 377   1              g_SampleRate = 0;       
+ 378   1              g_FlagHdcpEn = 0;               
+ 379   1              DP_HDCP_EN = 0x00;
+ 380   1              delay1ms1(200);//wait sram load flash done;
+ 381   1              //g_timer1_4scnt = 0;
+ 382   1              SystemClk();
+ 383   1              Lt7911D_FwVersionSet();
+ 384   1              SET_GPIO5_LOW();
+ 385   1              InitTime0Inter();
+ 386   1              BKC1_17_REG = 0x01;
+ 387   1      //      UpdateEdid();
+ 388   1              RebulidEdid();
+ 389   1              DP_Initial();
+ 390   1              DPCD_Init();
+ 391   1      //      DISABLE_VSYNC();
+ 392   1              Traindown_Flag = FALSE;
+ 393   1              FlagVideoOK = FALSE;
+ 394   1              Flag_Aux_Sleep = FALSE;
+ 395   1              g_FlagVideoChange = FALSE;      
+ 396   1              BKD2_21_REG = 0x8F;
+ 397   1              BKD2_22_REG = 0xFF;
+ 398   1              BKD2_67_REG = 0x22;     
+ 399   1              if(g_InputType == Typec_Source)
+ 400   1                      {
+ 401   2                              CC_INT();
+ 402   2                              TypeCInit();    
+ 403   2                              linkAux_TypecEvb();//CC2
+ 404   2                      }
+ 405   1              else
+ 406   1                      {
+ 407   2                              EA = 1;
+ 408   2                              DPEnable = 1;
+ 409   2                              AUX_INT();
+ 410   2                              Video_INT();
+ 411   2                              HPD_High();     
+ 412   2                      }
+ 413   1              while(1)
+ 414   1              {       
+ 415   2                      if(g_InputType == Typec_Source)
+ 416   2                      {
+ 417   3                              Attention_Send();
+ 418   3                      }
+ 419   2                      
+ 420   2                      if(Hsync_Release)//Stable Hsync
+ 421   2                      {                       
+ 422   3                              count++ ;
+ 423   3                              if(count == 10)
+ 424   3                              {                       
+ 425   4                                      count = 0;
+ 426   4                                      if(Traindown_Flag||g_FlagVideoChange||Flag_Aux_Sleep)//Aux Trainning done
+C51 COMPILER V9.60.0.0   LT7911                                                            11/26/2025 11:55:36 PAGE 8   
+
+ 427   4                                      {
+ 428   5                                              if(((BKB8_B0_REG&0x20))&&(BKB8_B0_REG&0x40))//RXPLL and pixpll lock
+ 429   5                                              {
+ 430   6                                                      DelayMs(200);
+ 431   6                                                      if(!LaneErrorCheck())//100ms内不超过10个error
+ 432   6                                                      {
+ 433   7                                                              Traindown_Flag = FALSE;
+ 434   7                                                              FlagVideoOK = TRUE;
+ 435   7                                                              g_FlagVideoChange = FALSE;
+ 436   7                                                              Flag_Aux_Sleep = FALSE;                                                 
+ 437   7                                                              Dp_Audio();
+ 438   7                                                              AUX_INT();                                                      
+ 439   7                                                              MipiInitial();
+ 440   7                                                              FlagMipiOK = 1; 
+ 441   7                                                              DelayMs(10);
+ 442   7                                                              time1_100ms = 0;
+ 443   7                                                              count = 0;
+ 444   7                                                              ENABLE_VYSNC();//Enable I2S D2 output Vsync     
+ 445   7      
+ 446   7                                                              g_SampleRate = chip_read_i2c(0xD154) << 8;
+ 447   7                                                              g_SampleRate = g_SampleRate + chip_read_i2c(0xD155);                                                                            
+ 448   7                                                              SET_GPIO5_HIGH();
+ 449   7      //                                                      DelayMs(200);
+ 450   7      //                                                      SET_GPIO5_LOW();        
+ 451   7      
+ 452   7      
+ 453   7                                                      }
+ 454   6                                                      else
+ 455   6                                                      {
+ 456   7      //                                                      EQ_Scan();
+ 457   7                                                      }
+ 458   6                                              }
+ 459   5                                      }
+ 460   4                                              else
+ 461   4                                              {
+ 462   5                                                      VideoChangeDetect();
+ 463   5                                                      if(LaneErrorCheck())
+ 464   5                                                      {
+ 465   6                                                              if(!Flag_Aux_Sleep)
+ 466   6                                                              {
+ 467   7                                                                      FlagVideoOK = FALSE ;
+ 468   7                                                                      Flag_Aux_Sleep = TRUE;
+ 469   7      //                                                              SET_GPIO5_HIGH();
+ 470   7      //                                                              DelayMs(200);
+ 471   7                                                                      SET_GPIO5_LOW();        
+ 472   7                                                              }
+ 473   6                                                      }                                                       
+ 474   5                                              }                               
+ 475   4                              }
+ 476   3                              #if HDCP_En ==1
+                                      if(FlagVideoOK)
+                                      {
+                                              if(LaneErrorCheck())
+                                              {
+                                                              if(BKDB_A4_REG&0x40)
+                                                              {
+                                                                      BKB0_0B_REG = 0xD5;
+                                                              }
+                                              }                                       
+                                              if(BKDB_A4_REG&0x02)
+                                              {
+                                                      if(!g_FlagHdcpEn)
+C51 COMPILER V9.60.0.0   LT7911                                                            11/26/2025 11:55:36 PAGE 9   
+
+                                                      {
+                                                      g_FlagHdcpEn = 1;
+                                                      }
+                                              }
+                                              else
+                                              {
+                                                      if(g_FlagHdcpEn)
+                                                      {
+                                                              delay1ms1(250);
+                                                              g_FlagHdcpEn = 0;                       
+                                                              IRQ_Send();
+                                                              delay1ms1(500);
+                                                              FlagIRQSend = 1;                                                                                        
+                                                      }
+                                              }
+                                              if(FlagIRQSend)
+                                              {
+                                                      FlagIRQSend = 0;
+                                              }
+                                      }
+                                      #endif                  
+ 510   3                      }
+ 511   2                      else
+ 512   2                      {
+ 513   3                              count = 0;
+ 514   3                              if(Traindown_Flag || FlagVideoOK)
+ 515   3                              {
+ 516   4                                      time1_100ms++;
+ 517   4                                      delay1ms1(1);
+ 518   4                                      if(time1_100ms == 200)//delay1ms1(100); 
+ 519   4                                      {
+ 520   5                                                      time1_100ms = 0;
+ 521   5                                                      if((!(BKB8_B0_REG&0x20))&&(BKB8_B0_REG&0x40))//RXPLL Lock but pixpll unlock
+ 522   5                                                      {
+ 523   6                                                              if(!Hsync_Release)//PCR problem
+ 524   6                                                              {
+ 525   7                                                                      BKD8_00_REG = 0x01|DP_HDCP_EN;
+ 526   7                                                                      PCR_Reset();                            
+ 527   7                                                              }
+ 528   6                                                      }
+ 529   5                                                      else if(((BKB8_B0_REG&0x20))&&(BKB8_B0_REG&0x40))
+ 530   5                                                      {                                                       
+ 531   6                                                              if(!LaneErrorCheck())//Skew problem
+ 532   6                                                              {
+ 533   7                                                                      MVidCheck();
+ 534   7                                                              }
+ 535   6                                                              else
+ 536   6                                                              {
+ 537   7                                                                      //EQ_Scan();
+ 538   7                                                                      Training_Reset();
+ 539   7                                                              }
+ 540   6                                                      }
+ 541   5                                      }
+ 542   4                                      if(FlagVideoOK)
+ 543   4                                      {
+ 544   5                                              FlagVideoOK = FALSE ;
+ 545   5                                              if(!Flag_Aux_Sleep)
+ 546   5                                              {
+ 547   6                                                      FlagVideoOK = FALSE ;
+ 548   6                                                      Flag_Aux_Sleep = TRUE;
+ 549   6      //                                              SET_GPIO5_HIGH();
+ 550   6      //                                              DelayMs(200);
+C51 COMPILER V9.60.0.0   LT7911                                                            11/26/2025 11:55:36 PAGE 10  
+
+ 551   6                                                      SET_GPIO5_LOW();        
+ 552   6                                              }
+ 553   5                                      }                               
+ 554   4                              }
+ 555   3                      }
+ 556   2              }
+ 557   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1793    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----      18
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
